@@ -2,18 +2,6 @@
 source "$DOROTHY/sources/essentials.sh"
 source "$DOROTHY/sources/strict.bash"
 
-# Brew
-if is-brew; then
-	ok brew uninstall --ignore-dependencies ruby
-	if test -n "${RUBY_VERSION-}"; then
-		if test "$RUBY_VERSION" != "system"; then
-			ok brew install "ruby@$RUBY_VERSION"
-		fi
-	else
-		ok brew install ruby
-	fi
-fi
-
 # Check
 if ! command-exists gem; then
 	stderr echo -e '\nRuby (gem) does not seem to be installed...'
@@ -32,11 +20,11 @@ if is-string "${GEM_HOME-}"; then
 fi
 
 # Helper
-function geminstall {
-	for ARG in "$@"; do
-		echo "GEM INSTALL: $ARG"
-		local name="${ARG% *}"
-		local version="${ARG#* }"  # will be the same as name, if no version was provided
+function act {
+	for arg in "$@"; do
+		echo "GEM INSTALL: $arg"
+		local name="${arg% *}"
+		local version="${arg#* }"  # will be the same as name, if no version was provided
 		if test "$version" = "$name"; then
 			version=''
 		fi
@@ -44,11 +32,19 @@ function geminstall {
 	done
 }
 
-echo -e '\nUpdating ruby gems...'
-gem update --system
+# Update
+# As we wipe gems each time, this is no longer needed
+# also, it causes the following error on apt systems
+# ERROR:  Your RubyGems was installed trough APT, and upgrading it through RubyGems
+# 	itself is unsupported. If you really need the latest version of RubyGems (tip:
+# 	you usually don't), then you need to install RubyGems (and Ruby) manually,
+# 	maybe using tools like ruby-install, rvm, etc.
+# echo -e '\nUpdating ruby gems...'
+# gem update --system
 
+# Install
 echo -e '\nInstalling ruby gems...'
 if is-present "${RUBY_INSTALL-}"; then
-	geminstall "${RUBY_INSTALL[@]}"
+	act "${RUBY_INSTALL[@]}"
 fi
 

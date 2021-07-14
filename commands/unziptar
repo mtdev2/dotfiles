@@ -2,7 +2,7 @@
 source "$DOROTHY/sources/strict.bash"
 
 export filename; filename="${1:?USAGE: unziptar <archive-file> [extraction-destination]}"
-export filepath; filepath="$(full-path "$filename")"
+export filepath; filepath="$(fs-absolute "$filename")"
 export destination; destination="${2-}"
 
 if contains-string "$filename" ".zip"; then
@@ -14,9 +14,8 @@ if contains-string "$filename" ".zip"; then
 else
 	if test -n "$destination"; then
 		mkdir -p "$destination"
-		pushd "$destination" || exit 1
+		cd "$destination" || exit 1
 		tar -xvzf "$filepath"
-		popd || exit 1
 	else
 		tar -xvzf "$filepath"
 	fi

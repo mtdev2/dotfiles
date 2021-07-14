@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+v="${1-}"
+test -z "$v" -o "$v" = "null" -o "$v" = "NULL" -o "$v" = "void" -o "$v" = "VOID" -o "$v" = '0'

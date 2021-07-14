@@ -4,6 +4,14 @@
 
 - [Shell Scripts Matter](https://dev.to/thiht/shell-scripts-matter)
 
+## run a command on each line
+
+```bash
+ls -1 | xargs -I %s -- echo %s
+```
+
+https://stackoverflow.com/a/68310927/130638
+
 ## function arguments
 
 - http://stackoverflow.com/a/6212408/130638
@@ -41,6 +49,9 @@ ok exit 1
 
 # using `|| :` bash builtin
 the-error-command arg1 arg2 || :
+
+# using `|| true` for cross-shell
+the-error-command arg1 arg2 || true
 ```
 
 ## safe variables
@@ -83,6 +94,13 @@ the-error-command arg1 arg2 || :
 > - http://tldp.org/LDP/abs/html/string-manipulation.html
 
 ```bash
+# get first line, via pipe
+# sed 1q: quit after first line
+# sed -n 1p: only print first line, but read everything
+# awk 'FNR == 1': only print first line, but read everything
+# head -n 1: fails if pipe closes prematurely
+echo -e 'a\nb' | sed 1q
+
 # get first line
 echo "${var%$'\n'*}" # "one\ntwo" to "one"
 
@@ -120,13 +138,13 @@ cd "$(dirname "$(rlink "$0")")"
 a=(
 	a
 	b
-	"c d"
+	'c d'
 	e
 	f
 )
 a+=(
 	g
-	"h i"
+	'h i'
 	j
 )
 
@@ -134,18 +152,36 @@ for r in "${a[@]}"; do
     echo "[$r]"
 done
 
+# args length
+echo "$#"
+
+# array length
+echo "${#a[@]}"
+
+# contains
 if test "${a[@]}" = *"c"*; then
 	echo 'with c'
 else
 	echo 'without c'
 fi
-
-
 if test "${a[@]}" = *"c d"*; then
 	echo 'with c d'
 else
 	echo 'without c d'
 fi
+
+# subsets
+echo "${a[@]:2:1}" # get one item, from the second index starting at 0
+# 'c d'
+
+echo "${a[@]:2:3}" # get three items, from the second index starting at 0
+# 'c d', e, f
+
+echo "${a[@]:1}"  # get all items, from the first index starting at 0
+# b, 'c d', e, f, g, 'h i', j
+
+echo ${a[@]::2}  # get all items until the second index, starting at 0
+# a, b
 ```
 
 ```
@@ -158,3 +194,11 @@ fi
 [h i]
 [j]
 ```
+
+associative/indexed/mapped arrays:
+
+> https://www.shell-tips.com/bash/arrays/
+
+# loops
+
+https://www.cyberciti.biz/faq/bash-for-loop/

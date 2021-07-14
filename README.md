@@ -2,33 +2,65 @@
 
 Dorothy is a dotfile ecosystem featuring:
 
-- seamless support for bash, fish, and zsh (this is hands down amazing)
-- seamless support for multiple operating systems, such as MacOS and Ubuntu (again amazing)
-- seamless support for your favorite terminal and GUI editors (so amazing)
-- automatic configuration of your environment variables for what you have installed on your system (much amazing)
-- automatic installation and updating of your specified packages (easily amazing)
-- automatic git ssh and gpg configuration based on what your system supports and your configuration (oh so amazing)
-- hundreds of [commands](https://github.com/bevry/dorothy/tree/master/commands) to improve your productivity (yes amazing)
-- completely extensible and configurable with your own user repository (yahoo amazing)
-- all this together, allows you to go from zero to hero within minutes, instead of days, on a brand new machine (thank you amazing)
+- seamless support for bash, fish, and zsh
+- seamless support for multiple operating systems, such as MacOS and Ubuntu
+- seamless support for your favorite terminal and GUI editors
+- automatic configuration of your environment variables for what you have installed on your system
+- automatic installation and updating of your specified packages
+- automatic git ssh and gpg configuration based on what your system supports and your configuration
+- hundreds of [commands](https://github.com/bevry/dorothy/tree/master/commands) to improve your productivity
+- completely extensible and configurable with your own user repository
+- all this together, allows you to go from zero to hero within minutes, instead of days, on a brand new machine
+
+## Try
+
+If you just want to trial [Dorothy commands](https://github.com/bevry/dorothy/tree/master/commands) without configuring your shell, you can do the following:
+
+```bash
+# IF you are on alpine, install the dependencies
+apk add curl git bash
+
+# IF you are on ubuntu, install the dependencies
+apt update
+apt install curl git bash
+
+# IF you are on macOS, install the dependencies
+xcode-select --install
+
+# To run only a specific command, run the following and swap out `what-is-my-ip` with whatever command you wish to run
+sh -ic "$(curl -fsSL https://dorothy.bevry.workers.dev/commands/what-is-my-ip)"
+
+# To run multiple commands in a REPL, run the following then type the commands you wish to execute
+bash --rcfile <(curl -fsSL https://dorothy.bevry.workers.dev)
+```
+
+If your shell doesn't recognise the syntax above, run `bash -il` then run the command again.
+
 
 ## Install
 
 To install Dorothy run the following in your favorite terminal application:
 
 ```bash
-# if you are on ubuntu, install the dependencies
-sudo apt install curl git
+# IF you are on alpine, install the dependencies
+apk add curl git bash
 
-# create a bash login shell session
-bash -il
-# run the dorothy installation script
-eval "$(curl -fsSL https://raw.githubusercontent.com/bevry/dorothy/master/commands/setup-dorothy)"
+# IF you are on ubuntu, install the dependencies
+apt update
+apt install curl git bash
+
+# IF you are on macOS, install the dependencies
+xcode-select --install
+
+# Run the dorothy installation script
+bash -ilc "$(curl -fsSL https://raw.githubusercontent.com/bevry/dorothy/master/commands/setup-dorothy)"
 ```
 
-If you would like to do the setup process manually, refer to [`commands/setup-dorothy`](https://github.com/bevry/dorothy/blob/master/commands/setup-dorothy).
+If your shell doesn't recognise the syntax above, run `bash -il` then run the command again.
 
-During installation, it will ask you to create a repository to store your user configuration, such as a `dotfiles` repository. If you already have a dotfiles repository, you can use that, or make another. If you decide to use your existing dotfiles repository refer to the [Configuration section](https://github.com/bevry/dorothy#configuration) for the expectations.
+If you would like to do the installation manually, refer to [`commands/setup-dorothy`](https://github.com/bevry/dorothy/blob/master/commands/setup-dorothy).
+
+During installation, Dorothy will ask you to create a repository to store your user configuration, such as a `dotfiles` repository. If you already have a dotfiles repository, you can use that, or make another. If you decide to use your existing dotfiles repository refer to the [Configuration section](https://github.com/bevry/dorothy#configuration) for the expectations.
 
 ## Explanation
 
@@ -51,6 +83,7 @@ The initialization of Dorothy works as follows:
    1. load our user configuration and overrides
 
 1. The extras will configure everything needed for user shells, rather than necessarily scripting:
+
    1. Configure our editor preferences
    1. Configure our aliases and functions
    1. Configure ssh
@@ -97,10 +130,15 @@ Examples of the `source.bash` file:
 
 Available `source.sh` configuration:
 
-- `DOROTHY_THEME` to specify which [Dorothy theme](https://github.com/bevry/dorothy/tree/master/themes) you would like to use (each Dorothy theme is consistent across the various different shells)
-- Other configuration is detailed in the various functionality sections.
+- `DOROTHY_THEME` to specify which cross-shell theme you would like to use, supported themes are:
 
-Open/edit your `source.sh` file:
+  - [`oz` for the bundled dorothy theme](https://github.com/bevry/dorothy/tree/master/themes/oz)
+
+  - [`starship` for the external Starship theme](https://starship.rs) provided by [`setup-util-starship`](https://github.com/bevry/dorothy/tree/master/commands/setup-util-starship)
+
+- Other `source.sh` configuration is detailed in the various functionality sections.
+
+To open/edit your `source.sh` file:
 
 ```bash
 edit "$DOROTHY/user/source.sh"
@@ -145,12 +183,14 @@ Available `source.bash` configuration:
 - `NODE_INSTALL` to specify what global dependencies should be installed/updated with the Node (npm/yarn) ecosystem
 - `PYTHON_INSTALL` to specify what should be installed/updated with the Python (Pip) ecosystem
 - `RUBY_INSTALL` to specify what should be installed/updated with the Ruby (Gem) ecosystem
+- `RUST_INSTALL` to specify what should be installed/updated with the Rust (Cargo) ecosystem
+- `SETUP_UTILS` to specify what cross-package-manager utilities should be setup
 
 If you would prefer to focus on a specify ecosystem, you the relevant commands are:
 
 - `setup-linux-*`: installs and configures linux
 - `setup-mac-*`: installs and configures mac
-- [`setup-go`](https://github.com/bevry/dorothy/tree/master/commands/setup-go), [`setup-node`](https://github.com/bevry/dorothy/tree/master/commands/setup-node), [`setup-python`](https://github.com/bevry/dorothy/tree/master/commands/setup-python), [`setup-ruby`](https://github.com/bevry/dorothy/tree/master/commands/setup-ruby) installs and configures their various ecosystems
+- [`setup-go`](https://github.com/bevry/dorothy/tree/master/commands/setup-go), [`setup-node`](https://github.com/bevry/dorothy/tree/master/commands/setup-node), [`setup-python`](https://github.com/bevry/dorothy/tree/master/commands/setup-python), [`setup-ruby`](https://github.com/bevry/dorothy/tree/master/commands/setup-ruby), [`setup-rust`](https://github.com/bevry/dorothy/tree/master/commands/setup-rust), [`setup-utils`](https://github.com/bevry/dorothy/tree/master/commands/setup-utils) installs and configures their various ecosystems
 - `setup-*-fonts`: installs fonts for your specify operating system
 - [`setup-bin`](https://github.com/bevry/dorothy/tree/master/commands/setup-bin): installs the CLI commands for the GUI apps you have installed
 

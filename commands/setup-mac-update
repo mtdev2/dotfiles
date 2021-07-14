@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/essentials.sh"
-source "$DOROTHY/sources/ssh.sh"
 source "$DOROTHY/sources/strict.bash"
 
-echo -e '\nAdding ssh keys to authorise updates from servers...'
-ssh-start-helper
-if is-mac; then
-	/usr/bin/ssh-add -A
-fi
-echo '...success'
+echo -e '\nEnsuring Apple Command Line Tool are installed..'
+while true; do
+	if ! xcode-select --install; then
+		echo "...Apple Command Line Tool are installed"
+		break
+	else
+		confirm "Press any key once the Apple Command Line Tool have been installed"
+	fi
+done
 
 echo -e '\nUpdating commenced...'
 

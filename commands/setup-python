@@ -2,42 +2,30 @@
 source "$DOROTHY/sources/strict.bash"
 
 # Helper
-function pipinstall {
-	for ARG in "$@"; do
-		pip-install "$ARG"
+function act {
+	for arg in "$@"; do
+		pip-install "$arg"
 	done
 }
-
-# Uninstall Python
-if is-brew; then
-	echo -e '\nRemoving old brew python installations...'
-	ok brew uninstall --ignore-dependencies python
-	rm -rf "/Users/$(whoami)/Library/Python/"*
-	rm -rf "$(brew --cellar)/python"*
-	rm -rf "$(brew --prefix)/opt/python"*
-
-	echo -e '\nInstalling latest brew python...'
-	brew install python
-fi
-
-# Reload Paths
-echo -e '\nReload paths and install latest pip tooling...'
-source "$DOROTHY/sources/essentials.sh"
 
 # Ensure pip exists
 if ! pipp --version; then
 	echo "Could not find pip, installing it manually..."
 	d="$(mktemp -d)"
-	pushd "$d" || exit 1
-	curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+	cd "$d" || exit 1
+	# python outputs the version to stderr, so we have to redirect stderr to stdout for it to be captured
+	if [[ "$(python --version 2>&1)" = 'Python 2.7.'* ]]; then
+		curl 'https://bootstrap.pypa.io/pip/2.7/get-pip.py' -o get-pip.py
+	else
+		curl 'https://bootstrap.pypa.io/get-pip.py' -o get-pip.py
+	fi
 	python get-pip.py --user
-	popd || exit 1
 fi
 
 # Reload Paths
 echo -e '\nReload paths and install latest pip tooling...'
 source "$DOROTHY/sources/essentials.sh"
-pipinstall pip setuptools
+act pip setuptools
 
 # Reload Paths
 echo -e '\nReload paths for latest pip tooling...'
@@ -46,5 +34,5 @@ source "$DOROTHY/sources/essentials.sh"
 # Install
 if is-present "${PYTHON_INSTALL-}"; then
 	echo -e '\nInstalling pip packages...'
-	pipinstall "${PYTHON_INSTALL[@]}"
+	act "${PYTHON_INSTALL[@]}"
 fi
