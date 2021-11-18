@@ -5,9 +5,10 @@ scale=3
 dpi=1200
 
 function convert {
+	local svg png
+
 	svg="$1"
-	png="${svg%.*}.png"
-	#png="./${1%.*} [scale=$scale] [dpi=$dpi].png"
+	png="$(fs-filename "$svg").png" # [scale=$scale] [dpi=$dpi].png"
 
 	echo "$svg to $png"
 
@@ -20,7 +21,7 @@ function convert {
 
 if test "$#" -eq 0; then
 	# convert all svg files
-	find-files svg | while read -r file; do
+	find-files --extension=svg | while read -r file; do
 		convert "$file"
 	done
 else

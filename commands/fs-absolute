@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2164
+source "$DOROTHY/sources/strict.bash"
+
+# help
+if is-help-empty "$@"; then
+	stderr cat <<-EOF
+		ABOUT:
+		Output the absolute path of a relative path.
+
+		USAGE:
+		fs-absolute <path...>
+
+		EXAMPLES:
+		fs-absolute ..
+		fs-absolute .
+		fs-absolute ./*
+
+		QUIRKS:
+		Use [fs-realpath] if you want symlinks resolved.
+	EOF
+	exit 22 # Invalid argument
+fi
+
+# options
+if test "$#" -eq 0; then
+	args=(
+		"$(ask --required --question="Enter a relative path to convert into an absolute path, leaving symlinks intact.")"
+	)
+else
+	args=("$@")
+fi
+
+# act
+# `pushd`/`popd` necessary, as otherwise the loop will cause weird results with `cd`
+for path in "${args[@]}"; do
+	# don't use [pwd -P] as -P resolves symlinks
+	# and resolving symlinks is what [fs-realpath] is for
+	filename="$(basename "$path")"
+	if test "$filename" = '..'; then
+		# handles parent
+		pushd "$(dirname "$path")/.." >/dev/null
+		pwd
+		popd >/dev/null
+	elif test "$filename" = '.'; then
+		# handlws cwd
+		pushd "$(dirname "$path")" >/dev/null
+		pwd
+		popd >/dev/null
+	else
+		# handles files and directories
+		pushd "$(dirname "$path")" >/dev/null
+		echo "$(pwd)/$filename"
+		popd >/dev/null
+	fi
+done

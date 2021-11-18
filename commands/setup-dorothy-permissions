@@ -1,26 +1,33 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2164
 source "$DOROTHY/sources/strict.bash"
 source "$DOROTHY/sources/globstar.bash"
 source "$DOROTHY/sources/nullglob.bash"
+source "$DOROTHY/sources/arrays.bash"
+requires_array_support 'mapfile'
 
+# perform the act
 cd "$DOROTHY"
 
-echo 'correcting permissions...'
-chmod -f +rwx ./**
-chmod -f -x ./**/*.md ./sources/*.* ./user/**/*.*
-chmod -f +x ./**/commands/*
+# user/secrets may need sudo
+echo-color --header 'correcting permissions...'
+mapfile -t directories < <(find-directories)
+commands=(
+	"$DOROTHY/commands/"*
+	"$DOROTHY/user/commands/"*
+	"$DOROTHY/user/commands.local/"*
+)
+chmod-helper --changes --permissions='+rwx' -- "${directories[@]}" "${commands[@]}"
 
-echo 'stage new files...'
-ok silent git add --ignore-errors ./**
+echo-color --header 'staging new files...'
+# The following paths are ignored by one of your .gitignore files: ...
+# hint: Use -f if you really want to add them.
+# hint: Turn this message off by running
+# hint: "git config advice.addIgnoredFile false"
+ok silent git add --ignore-errors "$DOROTHY"/**
 
-echo 'stage changed files...'
+echo-color --header 'staging changed files...'
 ok git add -u
 
-echo 'unstage sensitive files...'
-# prevent [git add ./*.sh] from adding [env.*] if it exists
-mkdir -p ./user/env
-silent git rm --ignore-unmatch --cached -r ./**/env/
-silent git rm --ignore-unmatch --cached ./**/env.*
-
-echo 'removing junk...'
+echo-color --header 'removing junk...'
 rm-junk

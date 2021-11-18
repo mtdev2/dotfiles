@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+source "$DOROTHY/sources/strict.bash"
+source "$DOROTHY/sources/config.sh"
+load_dorothy_config 'setup.bash'
+# ^ provides: APK_INSTALL
+
+# check
+if ! is-apk; then
+	exit 0
+fi
+
+# helpers
+function act() {
+	echo -e "\nInstalling $# apk packages..."
+	env NAME="apk:$*" \
+		APK="$*" \
+		setup-util apk
+}
+
+# user
+if test -v 'APK_INSTALL'; then
+	act "${APK_INSTALL[@]}"
+fi

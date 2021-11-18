@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
 
-# Switch to 1.1.1.1 to avoid filtering issues on platforms that support it
-ok select-dns cf-family
+# pre-requisites
+is-internet-working
 
-# Perform the upgdate
+# perform the update
 if is-mac; then
-	setup-mac-update
+	setup-mac update
 elif is-linux; then
-	setup-linux-update
+	setup-linux update
 fi
-
-# Restore default DNS servers on platforms that support it
-ok select-dns

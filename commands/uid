@@ -1,3 +1,20 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
-id -u "${1:?"USAGE: uid <username>"}"
+
+# help
+if is-help-empty "$@"; then
+	stderr cat <<-EOF
+		ABOUT:
+		Get the user identifier for a username.
+
+		USAGE:
+		uid <username>
+	EOF
+	exit 22 # Invalid argument
+fi
+
+# options
+username="$1"
+
+# act
+id -u "$username"

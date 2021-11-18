@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+source "$DOROTHY/sources/strict.bash"
+
+ec=0 && ("$@") || ec="$?"
+echo "$ec"
+exit 0

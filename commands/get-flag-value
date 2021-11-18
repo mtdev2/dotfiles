@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+source "$DOROTHY/sources/strict.bash"
+
+# this command requires bash v3 compatibility, so:
+# don't use `test -v`
+
+flag="${1-}"
+
+# shellcheck disable=2016
+if test -z "$flag" -o "$flag" = '--help' -o "$flag" = '-h'; then
+	stderr cat <<-EOF
+		USAGE:
+		get-flag-value <flag> [--multi] [--yes=...] [--no=...] [--missing=...] -- <--flag=value> <--flag> <--no-flag> ...
+
+		FLAGS:
+		Provide [--multi] to output the value for each occurence of the flag, instead of just the first.
+		Provide [--yes=...] to customise the value for when the flag is provided without any value.
+		Provide [--missing=...] to customise the value for when the flag is missing.
+
+		QUIRKS:
+		It does not support [--flag value], only [--[no-]flag=[value]].
+
+		EXAMPLES:
+
+		get-flag-value var --
+		^ outputs nothing
+
+		get-flag-value var -- --var
+		^ outputs: yes
+
+		get-flag-value var -- --no-var
+		^ outputs: no
+
+		get-flag-value var -- --var=value
+		^ outputs: value
+
+		get-flag-value var -- --var=
+		^ outputs an empty line
+
+		get-flag-value var --yes=yup --no=nada --missing=gone -- --var
+		^ outputs: yup
+
+		get-flag-value var --yes=yup --no=nada --missing=gone -- --var=yes
+		^ outputs: yes
+
+		get-flag-value var --yes=yup --no=nada --missing=gone -- --no-var
+		^ outputs: nada
+
+		get-flag-value var --yes=yup --no=nada --missing=gone -- --var=no
+		^ outputs: no
+
+		get-flag-value var --yes=yup --no=nada --missing=gone --
+		^ outputs: gone
+	EOF
+	exit 22 # Invalid argument
+fi
+
+# cycle
+yes='yes'
+no='no'
+found='no'
+multi='no'
+process='no'
+missing=''
+for arg in "${@:2}"; do
+	# handle our own options
+	if test "$process" = 'no'; then
+		if [[ "$arg" = '--yes='* ]]; then
+			yes="${arg:6}"
+		elif [[ "$arg" = '--no='* ]]; then
+			no="${arg:5}"
+		elif [[ "$arg" = '--missing='* ]]; then
+			missing="${arg:10}"
+		elif test "$arg" = '--multi'; then
+			multi='yes'
+		elif test "$arg" = '--'; then
+			process='yes'
+		fi
+		continue
+	fi
+
+	# prepare
+	inverted='no'
+	index=0
+
+	# check flag status
+	if test "${arg:0:2}" != '--'; then
+		# not a flag
+		continue
+	fi
+	index=2
+
+	# check inversion
+	if test "${arg:index:3}" == 'no-'; then
+		# is inverted
+		inverted='yes'
+		index=5
+	fi
+
+	# check is our flag
+	if test "${arg:index:${#flag}}" != "$flag"; then
+		# not our flag
+		continue
+	fi
+	found='yes'
+
+	# get the value
+	value="${arg:index+${#flag}}"
+	if test -z "$value"; then
+		value="$yes"
+	elif test "${value:0:1}" = '='; then
+		# is a proper value, trim =
+		value="${value:1}"
+	fi
+
+	# perform inversion
+	if test "$inverted" = 'yes'; then
+		if test "$value" = "$yes"; then
+			value="$no"
+		elif test "$value" = "$no"; then
+			value="$yes"
+		fi
+	fi
+
+	# echo
+	echo "$value"
+
+	# if single, one result is all we want
+	if test "$multi" = 'no'; then
+		break
+	fi
+done
+
+if test "$found" = 'no' -a -n "$missing"; then
+	echo "$missing"
+fi

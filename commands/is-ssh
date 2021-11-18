@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
-is-string "${SSH_CONNECTION-}" || is-string "${SSH_CLIENT-}" || is-string "${SSH_TTY-}"
+# this should be the same as what is inside oz
+test -n "${SSH_CONNECTION-}" -o -n "${SSH_CLIENT-}" -o -n "${SSH_TTY-}"

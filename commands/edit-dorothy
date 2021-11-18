@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-source "$DOROTHY/sources/essentials.sh"
-source "$DOROTHY/sources/edit.sh"
 source "$DOROTHY/sources/strict.bash"
+source "$DOROTHY/sources/edit.sh"
 
 # perms
 setup-dorothy-permissions
 
-# open git reviewer (if we have one installed) and edit dorothy
-ok git-review "$DOROTHY/user"
-ok git-review "$DOROTHY"
 edit "$DOROTHY"
+
+if confirm-negative 'Open Git Reviewer?'; then
+	ok git-review "$DOROTHY/user"
+	ok git-review "$DOROTHY"
+fi

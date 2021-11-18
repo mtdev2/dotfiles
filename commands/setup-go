@@ -1,43 +1,68 @@
 #!/usr/bin/env bash
-source "$DOROTHY/sources/essentials.sh"
+# shellcheck disable=SC2164,SC1091
 source "$DOROTHY/sources/strict.bash"
+source "$(which eval-collapse)"
 
-# Check
-if ! command-exists go; then
-	stderr echo -e '\nsetup-go: go must be installed first, before it is able to be setup...'
-	exit
+# =====================================
+# Configuration
+
+source "$DOROTHY/sources/config.sh"
+load_dorothy_config 'setup.bash'
+if test ! -v 'GO_INSTALL'; then
+	GO_INSTALL=()
 fi
 
-# Helper
-function goinstall() {
-	for ARG in "$@"; do
-		ok go get -u -v "$ARG"
+# =====================================
+# Start
+
+echo-segment --h1='Setup Go'
+
+# =====================================
+# Install
+
+setup-util-go
+source "$DOROTHY/sources/environment.sh"
+
+# =====================================
+# Adjustments
+
+if confirm-negative "Do you also want to install go linting packages? This is desired if you plan to code with go."; then
+	# https://github.com/golang/vscode-go/blob/master/docs/tools.md
+	# https://github.com/golang/tools/blob/master/gopls/README.md
+	GO_INSTALL+=(
+		golang.org/x/tools/gopls
+		github.com/go-delve/delve/cmd/dlv
+		# github.com/uudashr/gopkgs/cmd/gopkgs
+		github.com/ramya-rao-a/go-outline
+		# github.com/haya14busa/goplay/cmd/goplay
+		github.com/fatih/gomodifytags
+		github.com/josharian/impl
+		github.com/cweill/gotests/...
+	)
+fi
+
+# =====================================
+# Packages
+
+function go_install() {
+	echo-segment --h2="Install $# go packages"
+	for item in "$@"; do
+		env NAME="go:$item" OPTIONAL='yes' GO="$item" setup-util go
 	done
+	echo-segment --g2="Install $# go packages"
 }
+go_install "${GO_INSTALL[@]}"
 
-# Check
-if is-present "${GOPATH-}"; then
-	mkdir -p "$GOPATH"
+# =====================================
+# Linting
+
+if command-exists gometalinter; then
+	echo-segment --h2="complete [gometalinter] setup"
+	eval_collapse --- gometalinter --install || :
+	echo-segment --g2="complete [gometalinter] setup"
 fi
 
-# Check
-if is-present "${GO_INSTALL-}"; then
-	# Install extensions
-	if confirm-positive "Install go packages?"; then
-		echo -e '\nInstalling go packages...'
-		goinstall "${GO_INSTALL[@]}"
-		echo '...success'
-	fi
+# =====================================
+# Done
 
-	# Update All
-	if confirm-negative "Update all go packages?"; then
-		ok go get -u -v all
-	fi
-else
-	echo "no go packages to install, as GO_INSTALL was not found"
-fi
-
-# Linter
-if command-exists gometalinter && confirm-negative "Complete gometalinter installation?"; then
-	ok gometalinter --install
-fi
+echo-segment --g1='Setup Go'

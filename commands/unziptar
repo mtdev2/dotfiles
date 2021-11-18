@@ -1,11 +1,30 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
 
-export filename; filename="${1:?USAGE: unziptar <archive-file> [extraction-destination]}"
-export filepath; filepath="$(full-path "$filename")"
-export destination; destination="${2-}"
+# help
+if is-help "$@"; then
+	stderr cat <<-EOF
+		USAGE:
+		unziptar [archive file path] [--flags...]
 
-if contains-string "$filename" ".zip"; then
+		FLAGS:
+		Provide [--destination=...] to specify which directory the archive will be extracted to, defaults to the pwd.
+		Provide [--format=...] to manually specify format, for cases where it cannot be determined from the filename.
+	EOF
+	exit 22 # Invalid argument
+fi
+
+# options
+filename="$(ask --question="Enter the path of the archive to extract." --default="${1-}" --required)"
+destination="$(get-flag-value destination -- "$@")" # custom destination
+format="$(get-flag-value format -- "$@")"           # zip | tar | original filename, say a URL or so, before archive-file became a tmp file
+if test -z "$format"; then
+	format="$filename"
+fi
+
+filepath="$(fs-absolute "$filename")"
+
+if test "$format" = 'zip' || [[ "$format" = *".zip" ]]; then
 	if test -n "$destination"; then
 		unzip "$filepath" -d "$destination"
 	else
@@ -14,9 +33,8 @@ if contains-string "$filename" ".zip"; then
 else
 	if test -n "$destination"; then
 		mkdir -p "$destination"
-		pushd "$destination" || exit 1
+		cd "$destination" || exit 1
 		tar -xvzf "$filepath"
-		popd || exit 1
 	else
 		tar -xvzf "$filepath"
 	fi

@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
-source "$DOROTHY/sources/essentials.sh"
 source "$DOROTHY/sources/strict.bash"
-source "$DOROTHY/sources/globstar.bash"
 source "$DOROTHY/sources/nullglob.bash"
-source "$DOROTHY/sources/ssh.sh"
-ssh-start-helper
 
-set -x
-
-chmod 700 ~/.ssh
-find ~/.ssh/*.pub | while read -r f; do
+# perform the act
+chmod 700 "$HOME/.ssh"
+find "$HOME/.ssh/"*.pub | while read -r f; do
 	chmod 600 "$f"
 	ok chmod 600 "${f%.pub}"
 done
 
-find ~/.ssh/*.pub | while read -r f; do
+find "$HOME/.ssh/"*.pub | while read -r f; do
 	p="${f%.pub}"
 	if test -f "$p"; then
 		if is-mac; then

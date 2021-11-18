@@ -1,14 +1,57 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
+source "$DOROTHY/sources/arrays.bash"
+requires_array_support 'mapfile' 'empty'
 
-url="${1:?"USAGE: down-zip-file <URL> <destination>"}"
-dest="${2:?"USAGE: down-zip-file <url> <DESTINATION>"}"
+# @todo perhaps move --filter functionality to unziptar directly.
 
-file="$(mktemp)"
-down "$url" "$file"
+# help
+if is-help-empty "$@"; then
+	stderr cat <<-EOF
+		ABOUT:
+		Downloads an extracts an archive.
 
-unziptar "$file" "$dest"
+		USAGE:
+		down-zip <URL> [--flags...]
 
-rm -f "$file"
+		FLAGS:
+		Provide [--destination=...] to specify which directory the archive will be extracted to, defaults to the pwd.
+		Provide [--filter=...] to filter what is extracted.
+		Provide [--format=...] to manually specify format, for cases where it cannot be determined from the URL.
+	EOF
+	exit 22 # Invalid argument
+fi
 
-echo "unzipped $url to $dest"
+# options
+url="$(ask --question="Enter the URL of the archive file to download" --default="${1-}" --required)"
+destination="$(get-flag-value destination -- "$@")" # custom destination
+filter="$(get-flag-value filter -- "$@")"           # custom extraction
+format="$(get-flag-value format -- "$@")"           # format override
+if test -z "$destination"; then
+	destination="$(pwd)"
+fi
+if test -z "$format"; then
+	format="$url"
+fi
+
+# download to temp
+tempdir="$(mktemp -d)"
+tempfile="$(mktemp)"
+down "$url" --destination="$tempfile"
+unziptar "$tempfile" --destination="$tempdir" --format="$format"
+
+# download to destination
+if test -n "$filter"; then
+	mapfile -t results < <(expand-path "$tempdir/$filter")
+	for result in "${results[@]}"; do
+		cp -rf "$result" "$destination"
+	done
+	echo "unzipped $filter from $url to $destination"
+else
+	cp -rf "$tempdir/"* "$destination"
+	echo "unzipped $url to $destination"
+fi
+
+# rm temps
+rm -Rf "$tempdir"
+rm -f "$tempfile"

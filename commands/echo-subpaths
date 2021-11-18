@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+source "$DOROTHY/sources/strict.bash"
+source "$DOROTHY/sources/nullglob.bash"
+
+function help {
+	stderr cat <<-EOF
+		USAGE:
+		echo-subpaths <file or directory...>
+		# for each file, output its absolute path
+		# for each directory, output the absolute paths for each of its children
+
+		EXAMPLES:
+		echo-subpaths ..
+		echo-subpaths .
+		echo-subpaths ./*
+	EOF
+}
+
+function act {
+	if test -d "$1"; then
+		fs-absolute "$1/"*
+	else
+		fs-absolute "$1"
+	fi
+}
+
+source "$DOROTHY/sources/stdinargs.bash"

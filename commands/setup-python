@@ -1,50 +1,170 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2164,SC1091,SC1090
 source "$DOROTHY/sources/strict.bash"
 
-# Helper
-function pipinstall {
-	for ARG in "$@"; do
-		pip-install "$ARG"
+# ✓✔☑
+# todo: this is newer than commands/pipp and setup-util pip and pipx, so consider what to do with them
+
+# =====================================
+# Configuration
+
+source "$DOROTHY/sources/config.sh"
+load_dorothy_config 'setup.bash'
+# ^ provides: PYTHON_INSTALL, PIP_INSTALL, PIPX_INSTALL
+
+# =====================================
+# Start
+
+echo-segment --h1='Setup Python'
+
+# =====================================
+# Install
+
+echo-segment --h2="Install Python"
+
+# python2
+env CLI=python \
+	APK=python \
+	APT=python \
+	BREW=python \
+	PACMAN=python \
+	YUM=python \
+	setup-util
+
+# python3
+env CLI=python3 \
+	APK=python3 \
+	APT=python3 \
+	BREW=python3 \
+	PACMAN=python3 \
+	YUM=python3 \
+	setup-util
+
+# pipx dependencies for linux
+if ! is-mac; then
+	env OPTIONAL=yes NAME='python3-venv' \
+		APT='python3-venv' \
+		PACMAN='python-virtualenv' \
+		setup-util
+fi
+
+# refresh environment
+source "$DOROTHY/sources/environment.sh"
+
+echo-segment --g2="Install Python"
+
+# =====================================
+# PyEnv
+
+# pyenv
+# PYENV_ROOT="${PYENV_ROOT:-"$HOME/.pyenv"}"
+# echo -e "\nCleaning pyenv..."
+# rm -Rf "$PYENV_ROOT"
+# if test -n "${PYENV_VERSION-}"; then
+# 	echo -e "\nEnsuring pyenv is latest..."
+# 	fetch https://pyenv.run | bash
+# 	source "$DOROTHY/sources/environment.sh"
+# 	pyenv install "$PYENV_VERSION"
+# fi
+# source "$DOROTHY/sources/environment.sh"
+
+# =====================================
+# Packages
+
+# pip, pipx, user
+function pip_install {
+	local bin="$1" pip_installer_url pip_installer python_version pip_install=() pipx_install=()
+	if ! command-exists "$bin"; then
+		return 0
+	fi
+
+	# log
+	echo-segment --h2="packages for $bin"
+	echo-color --dim="$bin: $(which "$bin")"
+
+	# prepare
+	pip_installer="$(mktemp)" # --suffix='-get-pip.py' not supported by macos
+	if test -v 'PYTHON_INSTALL'; then
+		pip_install+=("${PYTHON_INSTALL[@]}")
+	fi
+	if test -v 'PIP_INSTALL'; then
+		pip_install+=("${PIP_INSTALL[@]}")
+	fi
+	if get-python-version "$bin" '2.'; then
+		python_version=2
+		if test -v 'PYTHON2_PIP_INSTALL'; then
+			pip_install+=("${PYTHON2_PIP_INSTALL[@]}")
+		fi
+		pip_installer_url='https://bootstrap.pypa.io/pip/2.7/get-pip.py'
+	else
+		python_version=3
+		if test -v 'PYTHON3_PIP_INSTALL'; then
+			pip_install+=("${PYTHON3_PIP_INSTALL[@]}")
+		fi
+		if test -v 'PIPX_INSTALL'; then
+			pipx_install+=("${PIPX_INSTALL[@]}")
+		fi
+		pip_installer_url='https://bootstrap.pypa.io/get-pip.py'
+	fi
+
+	# download pip
+	echo-segment --h3="download pip"
+	eval-collapse -- down "$pip_installer_url" --destination="$pip_installer"
+	echo-segment --g3="download pip"
+
+	# install pip
+	echo-segment --h3="install pip"
+	eval-collapse -- "$bin" "$pip_installer" --user
+	source "$DOROTHY/sources/environment.sh"
+	echo-segment --g3="install pip"
+
+	# echo -e "\nUpgrading pip for $bin..."
+	# "$bin" -m pip install \
+	# 	--user --upgrade --force-reinstall --no-warn-script-location \
+	# 	pip setuptools
+	# source "$DOROTHY/sources/environment.sh"
+
+	# install pip packages
+	echo-segment --h3="install ${#pip_install[@]} pip packages"
+	for item in "${pip_install[@]}"; do
+		eval-collapse --success="$(echo-color --dim+green="   pip installed: $item")" \
+			-- "$bin" -m \
+			pip install --user --upgrade --force-reinstall --no-warn-script-location \
+			"$item" || :
 	done
+	echo-segment --g3="install ${#pip_install[@]} pip packages"
+
+	# pipx
+	if test "$python_version" -eq 3; then
+		# install pipx
+		echo-segment --h3="install pipx"
+		eval-collapse \
+			-- "$bin" -m \
+			pip install --user --upgrade --force-reinstall --no-warn-script-location \
+			pipx || :
+		source "$DOROTHY/sources/environment.sh"
+		echo-segment --g3="install pipx"
+
+		# install pipx packages
+		echo-segment --h3="install ${#pipx_install[@]} pipx packages"
+		for item in "${pipx_install[@]}"; do
+			eval-collapse --success="$(echo-color --dim+green="   pipx installed: $item")" \
+				-- "$bin" -m \
+				pipx install --include-deps --force \
+				"$item" || :
+		done
+		echo-segment --g3="install ${#pipx_install[@]} pipx packages"
+	fi
+
+	# done
+	echo-segment --g2="packages for $bin"
 }
 
-# Uninstall Python
-if is-brew; then
-	echo -e '\nRemoving old brew python installations...'
-	ok brew uninstall --ignore-dependencies python
-	rm -rf "/Users/$(whoami)/Library/Python/"*
-	rm -rf "$(brew --cellar)/python"*
-	rm -rf "$(brew --prefix)/opt/python"*
+pip_install python
+pip_install python2
+pip_install python3
 
-	echo -e '\nInstalling latest brew python...'
-	brew install python
-fi
+# =====================================
+# Done
 
-# Reload Paths
-echo -e '\nReload paths and install latest pip tooling...'
-source "$DOROTHY/sources/essentials.sh"
-
-# Ensure pip exists
-if ! pipp --version; then
-	echo "Could not find pip, installing it manually..."
-	d="$(mktemp -d)"
-	pushd "$d" || exit 1
-	curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-	python get-pip.py --user
-	popd || exit 1
-fi
-
-# Reload Paths
-echo -e '\nReload paths and install latest pip tooling...'
-source "$DOROTHY/sources/essentials.sh"
-pipinstall pip setuptools
-
-# Reload Paths
-echo -e '\nReload paths for latest pip tooling...'
-source "$DOROTHY/sources/essentials.sh"
-
-# Install
-if is-present "${PYTHON_INSTALL-}"; then
-	echo -e '\nInstalling pip packages...'
-	pipinstall "${PYTHON_INSTALL[@]}"
-fi
+echo-color --og1 --g1='Setup Python' --cg1

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
-source "$DOROTHY/sources/splitlines.bash"
 
 # Guides
 # https://www.gnupg.org/gph/en/manual.html
@@ -21,32 +20,24 @@ source "$DOROTHY/sources/splitlines.bash"
 # sub => 'public SUBkey'
 
 function getmode {
-	if is-string "${1-}"; then
-		echo "$1"
-	else
-		modes=$'public\nprivate'
-		select mode in $modes; do
-			is-string "$mode" && break
-		done
-		echo "$mode"
-	fi
+	choose-option --question='What type of GPG key do you wish to fetch?' --filter="${1-}" -- 'public' 'private'
 }
 function getkey {
-	if is-string "${1-}"; then
+	if test -n "${1-}"; then
 		echo "$1"
 	else
 		key get
 	fi
 }
 function getdate {
-	if is-string "${1-}"; then
+	if test -n "${1-}"; then
 		echo "$1"
 	else
 		date -v +1y "+%Y-%m-%d"
 	fi
 }
 
-action="${1:-"$(choose list get export delete new edit trust extend expire encrypt decrypt sencrypt)"}"
+action="$(choose-option --question='What action do you want to take?' --filter="${1-}" -- list get export delete new edit trust extend expire encrypt decrypt sencrypt)"
 
 # list [mode]
 if test "$action" = "list"; then
@@ -59,7 +50,7 @@ if test "$action" = "list"; then
 
 # get [mode] [key]
 elif test "$action" = "get"; then
-	if is-string "${3-}"; then
+	if test -n "${3-}"; then
 		echo "$3"
 		exit 0
 	fi
@@ -78,15 +69,7 @@ elif test "$action" = "get"; then
 		exit 1
 	fi
 
-	count="$(echo "$keys" | wc -l | tr -d ' ')"
-	if test "$count" = "1"; then
-		echo "$keys"
-	else
-		select key in $keys; do
-			is-string "$key" && break
-		done
-		echo "$key"
-	fi
+	choose-option --question='Which key to select?' -- "${keys[@]}"
 
 # export [mode] [key]
 elif test "$action" = "export"; then
@@ -147,7 +130,7 @@ elif test "$action" = "encrypt"; then
 	file="${2:?"USAGE: key encrypt <FILE> <RECIPIENT's KEY> [your key]"}"
 	recipient="${3:?"USAGE: key encrypt <file> <RECIPIENT's KEY> [your key]"}"
 	you="${4-}"
-	if is-string "$YOU"; then
+	if test -n "$you"; then
 		gpg -ase -r "$recipient" -u "$you" "$file"
 	else
 		gpg -ase -r "$recipient" "$file"

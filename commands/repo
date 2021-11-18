@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
 
+# dependencies
+env QUIET=yes setup-util-jq
+env QUIET=yes setup-util-gh
+
+# act
 action="${1:-open}"
 
 PASS="\e[1;4;32m"
@@ -8,7 +13,7 @@ FAILURE="\e[1;4;31m"
 NORMAL="\e[0m"
 
 if test "$action" = "browse"; then
-	hub browse
+	gh browse
 elif test "$action" = "status"; then
 	echo -n 'ci: '
 	repo ci
@@ -18,11 +23,11 @@ elif test "$action" = "status"; then
 elif test "$action" = "ci"; then
 	travis status # "hhub ci-status" is unreliable
 elif test "$action" = "slug"; then
-	git remote get-url origin | sed "s/.*github.com.//" | sed "s/.git//"
+	git remote get-url origin | sed 's/.*github.com.//; s/.git//'
 elif test "$action" = "travis"; then
-	travisTLD="$(jq -r '.badges.config.travisTLD' < package.json)"
-	if is-empty "$travisTLD"; then
-		travisTLD="com";
+	travisTLD="$(jq -r '.badges.config.travisTLD' <package.json)"
+	if is-empty-value "$travisTLD"; then
+		travisTLD="com"
 	fi
 	open "https://travis-ci.${travisTLD}/$(repo slug)"
 elif test "$action" = "version"; then

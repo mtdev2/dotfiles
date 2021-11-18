@@ -1,6 +1,15 @@
 #!/usr/bin/env fish
-set -xg DOROTHY (dirname (status -f))
+
+# this should be consistent with:
+# $DOROTHY/init.fish
+# $DOROTHY/init.sh
+# $DOROTHY/commands/setup-dorothy
+if ! set -q DOROTHY
+	set -xg DOROTHY (dirname (status -f))
+end
+
+# login
 if status --is-login
-	source "$DOROTHY/sources/essentials.fish"
-	source "$DOROTHY/sources/extras.fish"
+	source "$DOROTHY/sources/init.fish"
+	source "$DOROTHY/sources/shell.fish"
 end

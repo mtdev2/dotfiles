@@ -1,4 +1,24 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
 
-curl -fsSL "$@"
+# help
+if is-help-empty "$@"; then
+	stderr cat <<-EOF
+		ABOUT:
+		Output the contents of a URL using whatever tool is available on your system.
+
+		USAGE:
+		fetch <...>
+	EOF
+	exit 22 # Invalid argument
+fi
+
+# act
+if command-exists curl; then
+	curl -fsSL "$@"
+elif command-exists wget; then
+	wget "$@" -O -
+else
+	stderr echo 'curl and wget are not installed, at least one needs to exist'
+	exit 1
+fi

@@ -3,4 +3,5 @@ source "$DOROTHY/sources/strict.bash"
 source "$DOROTHY/sources/nullglob.bash"
 source "$DOROTHY/sources/globstar.bash"
 
+# perform the act
 rm -Rf ./**/node_modules ./**/pnp ./**/package-lock.json ./**/yarn.lock ./**/.pnp.js ./**/.log

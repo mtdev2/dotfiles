@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
 
-# run the command with silent-stderr
-# because of strict, exit codes will be thrown
-result="$("$@" 2> /dev/null)"
+function help {
+	stderr cat <<-EOF
+		USAGE:
+		echo 'sup' | echo-or-fail
+		# ^ returns exit code 0
 
-# if empty, then fai
-if test -z "$result"; then
-	exit 1
-else
-	# if true, do the result to stdout
-	echo "$result"
-fi
+		: | echo-or-fail
+		# ^ returns exit code 1
+	EOF
+}
+
+function act {
+	echo "$1"
+}
+
+function noact {
+	return 96 # No message available on STREAM
+}
+
+source "$DOROTHY/sources/stdinargs.bash"

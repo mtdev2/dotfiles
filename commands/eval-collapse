@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2164,SC1091
+source "$DOROTHY/sources/strict.bash"
+source "$DOROTHY/sources/arrays.bash"
+if test "${EVAL_COLLAPSE-}" = 'yes' || ! has_array_support 'mapfile' 'empty'; then
+	# already in a collapse, or bash version too old
+	# so just do a basic eval
+	while is-needle '--' "$@"; do
+		shift
+	done
+	echo-element --open="$*"
+	ec=0 && ("$@") || ec="$?"
+	echo-element --close="$*" --status="$ec"
+	exit "$ec"
+fi
+
+# helper
+function eval_collapse() {
+	# prepare
+	local ec headers footer body options option_quiet option_pending option_success option_failure option_wrap args
+	ec=0
+	headers="$(mktemp)"
+	body="$(mktemp)"
+
+	# options
+	mapfile -t options < <(echo-before-separator "$@")
+	option_quiet="$(is-quiet --missing="yes" -- "$@")"
+	option_pending="$(get-flag-value pending -- "${options[@]}")"
+	option_success="$(get-flag-value success -- "${options[@]}")"
+	option_failure="$(get-flag-value failure -- "${options[@]}")"
+	option_wrap="$(get-flag-value wrap --missing=yes -- "${options[@]}" | echo-affirmative)"
+	mapfile -t args < <(echo-after-separator "$@")
+
+	# headers
+	if test -n "$option_pending"; then
+		echo "$option_pending" | tee -a "$headers"
+	fi
+	if test "$option_wrap" = 'yes'; then
+		echo-element --open="${args[*]}" | tee -a "$headers"
+	fi
+
+	# keep headers while we run the command and revolve door its output
+	export EVAL_COLLAPSE=yes # use epxort, as env doens't work with functions
+	ec=0 && ("${args[@]}" 2>&1 | tee "$body" | echo-revolving-door) || ec="$?"
+
+	# clear headers, we can re-add them later if needed
+	echo-clear-lines <"$headers"
+
+	# generate footer
+	footer=''
+	if test "$ec" -eq 0; then
+		if test -n "$option_success"; then
+			footer+="$option_success"$'\n'
+		fi
+	else
+		if test -n "$option_failure"; then
+			footer+="$option_failure"$'\n'
+		fi
+	fi
+
+	# if quiet and successful, dump footer and exit
+	if test "$option_quiet" = 'yes' -a "$ec" -eq 0; then
+		if test -n "$footer"; then
+			echo -n "$footer"
+		fi
+		return "$ec"
+	fi
+
+	# if it didn't output anything, output self closing wrap, then footer, then exit
+	if test -z "$(cat "$body")"; then
+		echo-element --openclose="${args[*]}" --status="$ec"
+		if test -n "$footer"; then
+			echo -n "$footer"
+		fi
+		return "$ec"
+	fi
+	# the command outputted things
+
+	# output wrap header
+	if test "$option_wrap" = 'yes'; then
+		echo-element --open="${args[*]}"
+	fi
+	# if verbose, or failure, output body
+	if test "$option_quiet" = 'no' -o "$ec" -ne 0; then
+		cat "$body"
+	fi
+	# outpout wrap footer
+	if test "$option_wrap" = 'yes'; then
+		echo-element --close="${args[*]}" --status="$ec"
+	fi
+	# output footer
+	if test -n "$footer"; then
+		echo -n "$footer"
+	fi
+	# done
+	return "$ec"
+}
+
+# fire if invoked standalone
+if test "$0" = "${BASH_SOURCE[0]}"; then
+	eval_collapse "$@"
+fi

@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 
-if "$DOROTHY/commands/is-string" "$FISH_VERSION"; then
+if test -n "$FISH_VERSION"; then
+	# shellcheck disable=3045
 	type --quiet "$1"
 else
-	"$DOROTHY/commands/silent" type "$1"
+	silent type "$1"
 fi

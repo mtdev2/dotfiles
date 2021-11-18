@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+source "$DOROTHY/sources/strict.bash"
+
+# fs-filename .dorothy/a.b.c => a.b
+echo "${1%.*}"

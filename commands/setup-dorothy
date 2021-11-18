@@ -1,211 +1,419 @@
 #!/usr/bin/env bash
 
-# NOTE: for installation segments, be sure to use "$DOROTHY/commands/blah" as paths have not yet been configured
+# NOTE:
+# this script may be eval'd or sourced
+# for install and trial modes
+# and dorothy may not exist yet
+# use stderr for errors, as otherwise trial mode will output failures to stdout
 
-# determine directory
+# prepare
+export DOROTHY DOROTHY_USER_HOME DOROTHY_XDG
+action="${DOROTHY_SETUP_ACTION:-"${1:-"install"}"}" # install (runs everything), update, trial
+if test "${action:0:2}" = '--'; then
+	action='install'
+fi
+
+# check for --xdg argument
+for arg in "$@"; do
+	if test "$arg" = '--xdg'; then
+		DOROTHY_XDG='yes'
+	elif test "$arg" = '--no-xdg' -o "$arg" = '--xdg=no'; then
+		DOROTHY_XDG='no'
+	fi
+done
+
+# dependencies
+if ! git --version >/dev/null; then
+	cat <<-EOF >/dev/stderr
+		git is missing, please recheck the installation instructions:
+		https://github.com/bevry/dorothy
+	EOF
+	exit 1
+fi
+
+# check custom initiation
 if test -z "${DOROTHY-}"; then
-	# legacy compat
-	if test -n "${BDIR-}"; then
-		export DOROTHY="$BDIR"
+	# setup-dorothy is running via curl, so dorothy init has not happened
+	# check if dorothy has previously been cloned
+	# such that when we setup the shell init scripts, they go to the correct location
+	if test -n "${XDG_DATA_HOME-}" -a -d "${XDG_DATA_HOME-}/dorothy"; then
+		DOROTHY="$XDG_DATA_HOME/dorothy"
+	elif test -d "$HOME/.local/share/dorothy"; then
+		DOROTHY="$HOME/.local/share/dorothy"
 	else
-		export DOROTHY="$HOME/.dorothy"
+		DOROTHY="$HOME/.dorothy"
 	fi
 fi
 
-# update or install dorothy
-echo
-if test -d "$DOROTHY"; then
-	# update
-	echo "Updating the Dorothy installation at $DOROTHY"
-	cd "$DOROTHY"
-	log="$(mktemp)"
-	ok silent git-protocol-apply origin
-	git pull origin "$(git-default-branch)" > "$log"
-	cat "$log"
-	if grep "Already" < "$log"; then
-		echo "...Dorothy already updated, continuing!"
-		rm "$log"
+# ensure dorothy, and its xdg permutations are accessible
+export PATH="$DOROTHY/commands:$HOME/.dorothy/commands:$HOME/.local/share/dorothy/commands:$PATH"
+# ^ right to left is preference
+
+# check xdg env var
+if test "${DOROTHY_XDG-}" = 'yes'; then
+	# move .dorothy
+	if test "$DOROTHY" = "$HOME/.dorothy"; then
+		if test -d "$DOROTHY"; then
+			DOROTHY="${XDG_DATA_HOME:-"$HOME/.local/share"}/dorothy"
+			if test -d "$DOROTHY"; then
+				cat <<-EOF >/dev/stderr
+					Unable to move:  $HOME/.dorothy
+					To the location: $DOROTHY
+					Because both locations already exist!
+				EOF
+				exit 1
+			fi
+			mv -v "$HOME/.dorothy" "$DOROTHY"
+		fi
 	else
-		echo -e '\n\nDorothy was updated, open a new terminal and run the earlier command again...'
-		rm "$log"
-		exit 1
+		echo "Dorothy already installed to $DOROTHY"
 	fi
-else
-	# install
+
+	# move .dorothy/user
+	# -h and -L are both tests for symlinks
+	if test -L "$DOROTHY/user"; then
+		DOROTHY_USER_HOME="$(fs-realpath "$DOROTHY/user")"
+		echo "Dorothy User Configuration already installed to $DOROTHY_USER_HOME"
+	else
+		DOROTHY_USER_HOME="${DOROTHY_USER_HOME:-"${XDG_CONFIG_HOME:-"$HOME/.config"}/dorothy"}"
+		if test -d "$DOROTHY/user"; then
+			# gotta move it
+			DOROTHY_USER_HOME="${DOROTHY_USER_HOME:-"${XDG_CONFIG_HOME:-"$HOME/.config"}/dorothy"}"
+			mv -v "$DOROTHY/user" "$DOROTHY_USER_HOME"
+			ln -vsfF "$DOROTHY_USER_HOME" "$DOROTHY/user"
+		else
+			echo "Dorothy User Configuration will be installed to $DOROTHY_USER_HOME"
+		fi
+	fi
+elif test "$DOROTHY_XDG" = 'no'; then
+	# undo dorothy
+	DOROTHY="${XDG_DATA_HOME:-"$HOME/.local/share"}/dorothy"
+	if test -d "$DOROTHY"; then
+		mv -v "$DOROTHY" "$HOME/.dorothy"
+	fi
+	DOROTHY="$HOME/.dorothy"
+
+	# undo dorothy/user
+	if test -L "$DOROTHY/user"; then
+		DOROTHY_USER_HOME="$(fs-realpath "$DOROTHY/user")"
+		rm -v "$DOROTHY/user"
+		mv -v "$DOROTHY_USER_HOME" "$DOROTHY/user"
+	fi
+	DOROTHY_USER_HOME=''
+fi
+
+# helpers
+git_init() {
+	mkdir -p "$1"
+	pushd "$1" >/dev/null || exit 1
+	git init
+	popd >/dev/null || exit 1
+}
+install_dorothy() {
+	# check
+	if test -d "$DOROTHY"; then
+		update_dorothy
+		return "$?"
+	fi
+
+	# act
+	echo
 	echo "Installing Dorothy into $DOROTHY"
 	git clone "https://github.com/bevry/dorothy.git" "$DOROTHY"
-fi
 
-# ensure any updated or installed commands have the correct permissions
-cd "$DOROTHY"
-chmod -f +x ./commands/*
+	# fix permissions
+	chmod -f +x "$DOROTHY/commands/"*
+}
+update_dorothy() {
+	# check
+	if test "$action" = 'trial'; then
+		return
+	fi
 
-# update or install user
-echo
-if test -d "$DOROTHY/user"; then
-	# update
+	# act
+	echo
+	echo "Updating the Dorothy installation at $DOROTHY"
+	if git-update "$DOROTHY" >/dev/null; then
+		# fix permissions
+		chmod -f +x "$DOROTHY/commands/"*
+	else
+		echo "...Dorothy was unable to be updated, you will have to figure this out now."
+		exit 1
+	fi
+}
+setup_dorothy() {
+	install_dorothy # goes to update_dorothy for us
+}
+setup_hostname() {
+	# check
+	if test "$action" != 'install'; then
+		return
+	fi
+
+	# act
+	hostname="$(get-hostname)"
+	if test "$hostname" = 'ubuntu'; then
+		if confirm-bool --term=$$ -- "This machine's hostname is currently generic [$hostname], would you like to change it?"; then
+			hostname="$(ask --question="What should the new hostname be?")"
+			if test -n "$hostname"; then
+				set-hostname "$hostname"
+			else
+				echo "Proceeding with the existing hostname: $hostname"
+			fi
+		fi
+	fi
+}
+install_user() {
+	# check action
+	if test "$action" = 'trial'; then
+		return
+	fi
+
+	# check custom initiation
+	if test ! -d "$DOROTHY/user"; then
+		if test -n "${DOROTHY_USER_HOME-}" -a -d "${DOROTHY_USER_HOME-}"; then
+			ln -vsfF "$DOROTHY_USER_HOME" "$DOROTHY/user"
+		elif test -n "${XDG_CONFIG_HOME-}" -a -d "${XDG_CONFIG_HOME-}/dorothy"; then
+			ln -vsfF "$XDG_CONFIG_HOME/dorothy" "$DOROTHY/user"
+		elif test -d "$HOME/.config/dorothy"; then
+			ln -vsfF "$HOME/.config/dorothy" "$DOROTHY/user"
+		fi
+	fi
+
+	# check successful initiation
+	if test -d "$DOROTHY/user"; then
+		update_user
+		return "$?"
+	fi
+
+	# prepare guided initiation
+	# assign empty values as otherwise unbound variable failures will occur
+	echo
+	local status='404' user='' repo='' temp='' init='no'
+
+	# fetch username for git repo preparation
+	user="$(git config --global github.user || true)"
+	if test -z "$user"; then
+		user="$(whoami)"
+		# clear generic
+		if test "$user" = 'ubuntu'; then
+			user=''
+		fi
+	fi
+
+	# confirm implied user repo
+	echo "Dorothy houses user configuration inside its own git repository."
+	if test -n "$user"; then
+		status="$(http-status "https://github.com/$user/dotfiles")"
+		if test "$status" -eq 200; then
+			# repo exists, confirm it with the user
+			temp="https://github.com/$user/dotfiles.git"
+			if confirm-bool --term=$$ -- "Does this repository house your Dorothy user configuration? $temp"; then
+				repo="$temp"
+			fi
+		fi
+	fi
+
+	# if no implied user repo, then prompt for user repo
+	if test -z "$repo"; then
+		cat <<-EOF
+			If you don't have a repository for it yet, then create one at https://github.com/new using the following details:
+
+			Repository name:
+			dotfiles
+
+			Description:
+			My user configuration for the Dorothy dotfile ecosystem: https://github.com/bevry/dorothy
+
+			Visibility:
+			Public
+
+			Initialize with:
+			keep everything unchecked
+
+			Once you have created the repository to house your Dorothy user configuration,
+			type its URL below
+		EOF
+		if test -n "$user"; then
+			repo="https://github.com/$user/dotfiles.git"
+			echo ", or press ENTER to confirm its URL as: $repo"
+		fi
+		read -rp "> " temp
+		if test -n "$temp"; then
+			repo="$temp"
+		fi
+	fi
+
+	# clone if repo specified
+	if test -n "$repo"; then
+		echo "Cloning the Dorothy user configuration into $DOROTHY/user"
+		if ! git clone "$repo" "$DOROTHY/user"; then
+			init='yes'
+			echo "The clone of the repository [$repo] to [$DOROTHY/user] failed."
+			echo "Dorothy will initialise the directory as a git repository, and leave it up to you to sync it up with a remote."
+			echo
+		fi
+	else
+		init='yes'
+	fi
+
+	# if skipped, or clone fail, then create the git directory
+	if test "$init" = 'yes'; then
+		git_init "$DOROTHY/user" || exit 1
+	fi
+
+	# fix permissions
+	if test -d "$DOROTHY/user/commands"; then
+		chmod -f +x "$DOROTHY/user/commands/"*
+	fi
+}
+update_user() {
+	# check
+	if test "$action" = 'trial'; then
+		return
+	fi
+
+	# act
+	echo
 	echo "Updating the Dorothy user configuration at $DOROTHY/user"
-	cd "$DOROTHY/user"
-	log="$(mktemp)"
-	ok silent git-protocol-apply origin
-	if ! git pull origin "$(git-default-branch)" > "$log"; then
-		echo "...Dorothy user configuration was unable to be updated, you will have to figure out why later (probably you are disconnected, or there is no remote pushes yet), continuing!"
-		rm "$log"
+	if git-update "$DOROTHY/user" >/dev/null; then
+		if test -d "$DOROTHY/user/commands"; then
+			chmod -f +x "$DOROTHY/user/commands/"*
+		fi
 	else
-		cat "$log"
-		if grep "Already" < "$log"; then
-			echo "...Dorothy user configuration already updated, continuing!"
-			rm "$log"
+		echo "...Dorothy user configuration was unable to be updated, you will have to figure this out now."
+		exit 1
+	fi
+}
+setup_user() {
+	if test "$action" = 'trial'; then
+		return
+	else
+		if test -d "$DOROTHY/user"; then
+			update_user
 		else
-			echo -e '\n\nDorothy user configuration was updated, open a new terminal and run the earlier command again...'
-			rm "$log"
-			exit 1
+			install_user
 		fi
 	fi
-else
-	# install
-	if test -z "${DOROTHY_USER_REPO-}"; then
-		# can't use truthy, or ok command yet, as still installing
-		user="$(git config --global github.user || exit 0)"
-		if test -z "$user"; then
-			user="$(whoami)"
+}
+setup_adjustments() {
+	# check
+	if test "$action" = 'trial'; then
+		return
+	fi
+
+	# deprecations
+	# this is done awkardly, as we have no guarantees of being in a bash version that properly supports arrays
+	deprecated_configuration_files=''
+	for deprecated_configuration_file in \
+		"$DOROTHY/user/source.sh" \
+		"$DOROTHY/user/source.bash" \
+		"$DOROTHY/user/source.zsh" \
+		"$DOROTHY/user/source.fish" \
+		"$DOROTHY/user/env.sh" \
+		"$DOROTHY/user/env.bash" \
+		"$DOROTHY/user/env.zsh" \
+		"$DOROTHY/user/env.fish"; do
+		if test -f "$deprecated_configuration_file"; then
+			deprecated_configuration_files="$deprecated_configuration_file"$'\n'"$deprecated_configuration_files"
 		fi
-		repo="https://github.com/$user/dotfiles.git"
-		echo "Dorothy requires a repository to be made to house your user configuration."
-		echo "Create a repository called \`dotfiles\` at https://github.com/new"
-		echo "Confirm it to be [$repo] by pressing enter/return, or by entering your own location:"
-		read -r -p "> " DOROTHY_USER_REPO
-		if test -z "$DOROTHY_USER_REPO"; then
-			export DOROTHY_USER_REPO="$repo"
+	done
+	if test -n "$deprecated_configuration_files"; then
+		cat <<-EOF >/dev/stderr
+			Dorothy has moved away from one configuration file for everything, into specialised configuration files.
+
+			Migration details can be found here:
+			https://github.com/bevry/dorothy/discussions/24
+
+			The following files will need to be migrated:
+			$deprecated_configuration_files
+		EOF
+	fi
+
+	# create essential directories
+	mkdir -p \
+		"$DOROTHY/user/commands.local" \
+		"$DOROTHY/user/commands" \
+		"$DOROTHY/user/config.local" \
+		"$DOROTHY/user/config"
+
+	# gitignore
+	config-helper \
+		--file="$DOROTHY/user/.gitignore" \
+		--find='commands.local/' --replace='commands.local/' \
+		--find='config.local/' --replace='config.local/'
+}
+check() {
+	if test -f "$1"; then
+		echo ''
+		echo-element --open="$1"
+		echo-color --dim "$(echo-trim-lines <"$1")"
+		echo-element --close="$1"
+		if confirm-positive --term=$$ -- "The above file is probably deprecated with Dorothy, would you like to replace it?"; then
+			rm "$1"
 		fi
 	fi
-
-	# clone
-	echo "Cloning the Dorothy user configuration into $DOROTHY/user"
-	if ! git clone "$DOROTHY_USER_REPO" "$DOROTHY/user"; then
-		echo "The clone of the repository [$DOROTHY_USER_REPO] to [$DOROTHY/user] failed."
-		echo "Dorothy will initialise the directory as a git repository, and leave it up to you to sync it up with a remote."
-		echo
-		mkdir -p "$DOROTHY/user"
-		cd "$DOROTHY/user"
-		"$DOROTHY/commands/silent" git init
-	else
-		cd "$DOROTHY/user"
+}
+setup_shell() {
+	# check
+	if test "$action" != 'install'; then
+		return
 	fi
 
-
-	# create env.sh if it doesn't exist
-	# as cloning out a repo that expects it will cause it all to fail
-	# if you don't use env.sh then send PR to make this optional via an env var or argument
-	if "$DOROTHY/commands/is-missing" "$DOROTHY/user/env.sh"; then
-		cat << EOF > "$DOROTHY/user/env.sh"
-#!/usr/bin/env sh
-# this file must be compatible with fish, zsh, bash
-
-# dorothy configuration options:
-# https://github.com/bevry/dorothy#configuration
-
-# use this file for placing things that you do not want committed to git
-
-EOF
-	fi
-
-	# seed
-	if "$DOROTHY/commands/is-missing" "$DOROTHY/user/source.bash" && "$DOROTHY/commands/confirm-positive" "Would you like to seed the configuration with the defaults?"; then
-		mkdir -p "$DOROTHY/user/commands"
-
-		# source.bash
-		cat << EOF > "$DOROTHY/user/source.bash"
-#!/usr/bin/env bash
-
-# dorothy configuration options:
-# https://github.com/bevry/dorothy#configuration
-# https://github.com/bevry/dorothy/blob/master/sources/defaults.bash
-
-# inherit the cross-platform shell configuration
-source "\$DOROTHY/user/source.sh"
-
-EOF
-
-		# source.sh
-		cat << EOF > "$DOROTHY/user/source.sh"
-#!/usr/bin/env sh
-# this file must be compatible with fish, zsh, bash
-
-# dorothy configuration options:
-# https://github.com/bevry/dorothy#configuration
-# https://github.com/bevry/dorothy/blob/master/sources/defaults.sh
-
-# source my env file
-. "\$DOROTHY/user/env.sh"
-
-EOF
-
-		# .gitignore
-		cat << EOF > "$DOROTHY/user/.gitignore"
-**/env/
-**/env.*
-**/secrets/
-
-EOF
-
-		# user installed
-	fi
-fi
-
-# ensure any updated or installed commands have the correct permissions
-cd "$DOROTHY"
-"$DOROTHY/commands/ok" "$DOROTHY/commands/silent" chmod -f +x ./user/commands/*  # would fail if no commands
-
-# proceed with install
-if test "${1-}" != 'update'; then
-	# now that dorothy is confirmed to exist, proceed with strict mode
-	source "$DOROTHY/sources/strict.bash"
-
+	# act
 	echo
 	echo 'Dorothy will now confirm the modifications required to have it be loaded by your shell.'
 	echo
-	function check {
-		if "$DOROTHY/commands/is-file" "$1"; then
-			echo ''
-			echo "== <$1> =="
-			"$DOROTHY/commands/trim" < "$1"
-			echo "== </$1> =="
-			echo
-			if "$DOROTHY/commands/confirm-positive" "The above file is probably deprecated with Dorothy, would you like to remove it?"; then
-				rm "$1"
-			fi
-		fi
-		return 0
-	}
 	check "$HOME/.profile"
 	check "$HOME/.bash_profile"
 	check "$HOME/.bashrc"
 	check "$HOME/.zshrc"
+	check "$HOME/.zprofile"
 	check "$HOME/.config/fish/config.fish"
-	echo ''
+	echo
 
-	if "$DOROTHY/commands/confirm-positive" "Would you like bash to use Dorothy?"; then
-		if "$DOROTHY/commands/is-mac" || "$DOROTHY/commands/is-ubuntu"; then
-			# shellcheck disable=SC2016
-			printf '\n\n# Source our custom dotfile configuration\nsource "%s/init.sh"\n' "$DOROTHY" >> "$HOME/.bash_profile"
-		else
-			# shellcheck disable=SC2016
-			printf '\n\n# Source our custom dotfile configuration\nsource "%s/init.sh"\n' "$DOROTHY" >> "$HOME/.bashrc"
-		fi
+	if confirm-positive --term=$$ -- "Would you like bash to use Dorothy?"; then
+		# mac and raspi ubuntu
+		config-helper \
+			--file="$HOME/.bash_profile" \
+			--find='source ".+?" # Dorothy' --replace="source \"$DOROTHY/init.sh\" # Dorothy"
+
+		# vm ubuntu
+		config-helper \
+			--file="$HOME/.bashrc" \
+			--find='source ".+?" # Dorothy' --replace="source \"$DOROTHY/init.sh\" # Dorothy"
 	fi
 
-	if "$DOROTHY/commands/confirm-positive" "Would you like zsh to use Dorothy?"; then
-		# shellcheck disable=SC2016
-		printf '\n\n# Source our custom dotfile configuration\nsource "%s/init.sh"\n' "$DOROTHY" >> "$HOME/.zshrc"
+	if confirm-positive --term=$$ -- "Would you like zsh to use Dorothy?"; then
+		config-helper \
+			--file="$HOME/.zshrc" \
+			--find='source ".+?" # Dorothy' --replace="source \"$DOROTHY/init.sh\" # Dorothy"
+
+		config-helper \
+			--file="$HOME/.zprofile" \
+			--find='source ".+?" # Dorothy' --replace="source \"$DOROTHY/init.sh\" # Dorothy"
 	fi
 
-	if "$DOROTHY/commands/confirm-positive" "Would you like fish to use Dorothy?"; then
+	if confirm-positive --term=$$ -- "Would you like fish to use Dorothy?"; then
 		mkdir -p "$HOME/.config/fish"
-		# shellcheck disable=SC2016
-		printf '\n\n# Source our custom dotfile configuration\nsource "%s/init.fish"\n' "$DOROTHY" >>  "$HOME/.config/fish/config.fish"
+		config-helper \
+			--file="$HOME/.config/fish/config.fish" \
+			--find='source ".+?" # Dorothy' --replace="source \"$DOROTHY/init.fish\" # Dorothy"
 	fi
+}
 
-	"$DOROTHY/commands/confirm" "Dorothy is now installed, this terminal will now be closed..."
-	exit
+# perform the actions
+setup_dorothy
+source "$DOROTHY/sources/strict.bash" # it is here, as now we know dorothy does exit
+setup_hostname
+setup_user
+setup_adjustments
+setup_shell
+if test "$action" = 'install'; then
+	echo
+	echo-color --green+bold='Dorothy is now setup. ' --red+bold+underline='Restart your terminal.'
+	echo 'Once you have restarted your terminal, it is highly recommended that you run:'
+	echo
+	echo-color --bold=$'\tsetup-util-bash'
+	echo
 fi

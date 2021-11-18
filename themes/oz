@@ -1,120 +1,143 @@
 #!/usr/bin/env bash
+# bash and zsh run this natively
+# both support arrays
 
-# Colours
-if is-string "${ZSH_VERSION-}"; then
-	autoload colors
-	colors
-	export RED="$fg[red]"
-	export RED_BOLD="$fg_bold[RED]"
-	export BLUE="$fg[blue]"
-	export CYAN="$fg[cyan]"
-	export PURPLE="$fg[purple]"
-	export GREEN="$fg[green]"
-	export YELLOW="$fg[yellow]"
-	export BLACK="$fg[black]"
-	export NO_COLOR="$reset_color"
-else
-	# Bash Colours
-	# Can start with either \033 or \e
-	# Normal is \e[0;
-	# Bold is \e[01;
-	export RED="\e[0;31m"
-	export RED_BOLD="\e[01;31m"
-	export BLUE="\e[0;34m"
-	export CYAN='\e[0;36m'
-	export PURPLE='\e[0;35m'
-	export GREEN="\e[0;32m"
-	export YELLOW="\e[0;33m"
-	export BLACK="\e[0;38m"
-	export NO_COLOR="\e[0m"
-fi
+# works in bash and zsh
+RED=$'\e[31m'     # "$(tput setaf 1)"
+GREEN=$'\e[32m'   # "$(tput setaf 2)"
+YELLOW=$'\e[33m'  # "$(tput setaf 3)"
+BLUE=$'\e[34m'    # "$(tput setaf 4)"
+CYAN=$'\e[36m'    # "$(tput setaf 6)"
+NO_COLOR=$'\e[0m' # "$(tput sgr0)"
+NEWLINE=$'\n'
 
-# Alias colours for specific usages
-export C_RESET=$NO_COLOR
-export C_TIME=$GREEN
-export C_USER=$BLUE
-export C_PATH=$YELLOW
-export C_GIT_CLEAN=$CYAN
-export C_GIT_DIRTY=$RED
-export C_ERROR=$RED
+# https://en.wikipedia.org/wiki/ANSI_escape_code#Fe_Escape_sequences
+# ESC ]	[C1: 0x9D]	[Name: OSC (Operating System Command)]
+# Starts a control string for the operating system to use, terminated by ST.[5]: 8.3.89
+# https://en.wikipedia.org/wiki/ANSI_escape_code#OSC
+# Xterm allows the window title to be set by ESC ]0;this is the window title BEL.
+# \033 = \e
+# https://en.wikipedia.org/wiki/ANSI_escape_code#Control_characters
+# [Caret Notation: ^G]	[C0: 7]	[Name: BEL (Bell)]
+# Makes an audible noise.
+# \033 = \a
+TITLE_START=$'\e]0;'
+TITLE_END=$'\a'
+
+# alias the colours for specific usages
+C_RESET="$NO_COLOR"
+C_TIME="$GREEN"
+C_USER="$BLUE"
+C_PATH="$YELLOW"
+C_GIT_CLEAN="$CYAN"
+C_GIT_DIRTY="$RED"
+C_ERROR="$RED"
 
 # Function to assemble the Git part of our prompt
 # git_prompt "$C_GIT_CLEAN" "$C_GIT_DIRTY"
 function git_prompt {
-	local git_branch; git_branch=$(silent-stderr git branch | sed -n 's/^\* //p')
-	if is-string "$git_branch"; then
-		if silent git diff --quiet; then
-			local c_git=$1
+	local git_branch c_git
+	# silence stderr
+	git_branch="$(git branch 2>/dev/null)"
+	if test -n "$git_branch"; then
+		# silence stdout and stderr
+		if git diff --quiet >/dev/null 2>&1; then
+			c_git="$1"
 		else
-			local c_git=$2
+			c_git="$2"
 		fi
-		echo "${c_git}${git_branch}${C_RESET}"
+		# "* master" to "master"
+		echo "${c_git}${git_branch/* /}${C_RESET}"
 	fi
-}
-
-# Function
-function append {
-	if is-string "$1"; then
-		echo -n "$1$2"
-	fi
-	echo -n "$3"
 }
 
 # Theme
 function oztheme {
-	local shell="$1"
-	local exitstatus="$2"
-	local prefix=""
-	local suffix=""
-	local separator=':'
-	local gitdata; gitdata="$(git_prompt "$C_GIT_CLEAN" "$C_GIT_DIRTY")"
-	local moment; moment="$(date +%H:%M:%S)"
-	local user=""
-	local target="${PWD/HOME/~}"
-	local symbol="> "
+	local c_user="$C_USER" \
+		shell="$1" \
+		last_command_exit_status="$2" \
+		prefix='' suffix='' separator=':' user='' symbol='> ' \
+		target="${PWD/HOME/~}" \
+		gitdata moment \
+		title=''
 
-	if is-ssh; then
+	gitdata="$(git_prompt "$C_GIT_CLEAN" "$C_GIT_DIRTY")"
+	moment="$(date +%H:%M:%S)"
+
+	# is-ssh, it is duplicated here in case $DOROTHY is not in path,
+	# which can happen if relocating dorothy to xdg
+	if test -n "${SSH_CONNECTION-}" -o -n "${SSH_CLIENT-}" -o -n "${SSH_TTY-}"; then
 		user="${USER}@${HOSTNAME}"
-		local C_USER=$C_GIT_DIRTY
+		c_user="$C_GIT_DIRTY"
 	fi
 
-	if test "$exitstatus" -ne 0; then
-		prefix="$(append "$prefix" "$separator" "${C_ERROR}[${exitstatus}]${C_RESET}")"
+	# construct prefix and title
+	if test "$last_command_exit_status" -ne 0; then
+		prefix+="${C_ERROR}[${last_command_exit_status}]${C_RESET}${separator}"
 	fi
-	if is-string "$moment"; then
-		prefix="$(append "$prefix" "$separator" "${C_TIME}${moment}${C_RESET}")"
+	if test -n "$moment"; then
+		prefix+="${C_TIME}${moment}${C_RESET}${separator}"
 	fi
-	if is-string "$user"; then
-		prefix="$(append "$prefix" "$separator" "${C_USER}${user}${C_RESET}")"
+	if test -n "$user"; then
+		prefix+="${c_user}${user}${C_RESET}${separator}"
+		title+="${user}${separator}"
 	fi
-	if is-string "$target"; then
-		prefix="$(append "$prefix" "$separator" "${C_PATH}${target}${C_RESET}")"
+	if test -n "$target"; then
+		prefix+="${C_PATH}${target}${C_RESET}${separator}"
+		title+="${target}${separator}"
+		# ^ perhaps this is better: $(echo -n $target | split '/' | sed '1!G;h;$!d' | join '\\\\')
 	fi
-	if is-string "$gitdata"; then
-		prefix="$(append "$prefix" "$separator" "${gitdata}")"
+	if test -n "$gitdata"; then
+		prefix+="${gitdata}${separator}"
 	fi
 
-	if is-string "$symbol"; then
+	if test -n "$symbol"; then
 		suffix="${suffix}${symbol}"
+	fi
+
+	# delete the last separator
+	if test -n "$BASH_VERSION"; then
+		# bash v3+
+		prefix_length="${#prefix}"
+		title_length="${#title}"
+		prefix="${prefix:0:prefix_length-1}"
+		title="${title:0:title_length-1}"
+	else
+		# zsh, bash v4+
+		prefix="${prefix:0:-1}"
+		title="${title:0:-1}"
 	fi
 
 	# Bash
 	if test "$shell" = "bash"; then
-		# local pathReversed=$(echo -n $target | split '/' | sed '1!G;h;$!d' | join '\\\\')
-		local base; base=$(basename "$target")
-		local title; title="${base}${separator}${user}${separator}${target}"
+		# sourced
 
-		export PS1="${prefix}\n${suffix}"
-		echo -ne "\033]0;${title}\007"
+		# apply prompt
+		PS1="${prefix}${NEWLINE}${suffix}"
+		# ^ don't export, as if bash is the login shell, bash subshells will also inherit this
+
+		# apply title
+		if test -n "$title"; then
+			echo -n "${TITLE_START}${title}${TITLE_END}"
+		fi
 
 	# ZSH
 	elif test "$shell" = "zsh"; then
-		export PS1="${prefix}
-${suffix}"
-		# export PROMPT="${prefix}\n\$ "
-		# echo -ne "\e]1;${title}\a"
+		# sourced
+
+		# apply prompt
+		PS1="${prefix}${NEWLINE}${suffix}"
+		# ^ don't export, as there is no need to
+
+		# apply title
+		if test -n "$title"; then
+			echo -n "${TITLE_START}${title}${TITLE_END}"
+		fi
 	else
-		echo -e "${prefix}\n${suffix}"
+		# run via command
+
+		# output prompt
+		echo "${prefix}${NEWLINE}${suffix}"
 	fi
 }
 

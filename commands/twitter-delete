@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
 
+# dependencies
+env QUIET=yes setup-util-jq
+
 # currently blocked:
 # https://github.com/twitter/twurl/issues/160
 
 twitter-setup
 
 if ruby --version | grep -qE '^ruby 3'; then
-	stderr echo 'twitter-delete requires twurl to run against ruby v2'
-	stderr echo "In your user source file, set the version: RUBY_VERSION='2.7'"
-	stderr echo "Then run setup-ruby and try again"
+	{
+		echo 'twitter-delete requires twurl to run against ruby v2'
+		echo "In your user source file, set the version: RUBY_VERSION='2.7'"
+		echo "Then run setup-ruby and try again"
+	} >/dev/stderr
 	exit 1
 fi
 
@@ -23,7 +28,7 @@ function act {
 
 # stdin
 stdin="no"
-while IFS= read -r -t 1 tweet; do
+while read -rt 1 tweet; do
 	stdin="yes"
 	act "$tweet"
 done <&0
@@ -31,8 +36,10 @@ done <&0
 if test "$stdin" = "no"; then
 	# invalid
 	if test "$#" -eq 0; then
-		stderr echo 'USAGE: twitter-delete <...tweet>'
-		stderr echo "USAGE: cat tweet.js | sed 's/window.YTD.tweet.part0 = //' | jq -r '.[].tweet.id_str' | twitter-delete"
+		{
+			echo 'USAGE: twitter-delete <...tweet>'
+			echo "USAGE: cat tweet.js | sed 's/window.YTD.tweet.part0 = //' | jq -r '.[].tweet.id_str' | twitter-delete"
+		} >/dev/stderr
 		exit 1
 	else
 		for tweet in "$@"; do

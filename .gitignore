@@ -1,2 +1,7 @@
+# generic
 **/.DS_Store
-user/
+.vscode/
+basic.vim
+
+# custom to dorothy
+user

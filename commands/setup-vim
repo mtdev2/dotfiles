@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
 
-echo -e '\nUpdating vim config with latest...'
-down "https://raw.githubusercontent.com/amix/vimrc/master/vimrcs/basic.vim" "$HOME/.vimrc"
-echo '...updated vim config!'
+echo-segment --h2='Setup Vim'
+
+if confirm-negative "Replace Vim config with fancy defaults?" "$(echo-color --dim 'Uses: https://github.com/amix/vimrc')"; then
+	if eval-collapse -- github-file-download 'amix/vimrc/master/vimrcs/basic.vim' \
+		--destination="$HOME/.vimrc"; then
+		echo-color --green "Successfully updated the Vim configuraiton."
+	fi
+fi
+
+echo-segment --g2='Setup Vim'

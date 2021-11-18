@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-source "$DOROTHY/sources/essentials.sh"
 source "$DOROTHY/sources/strict.bash"
+source "$DOROTHY/sources/environment.sh" # ensure new installations are detected
+source "$DOROTHY/sources/config.sh"
+load_dorothy_config 'shells.bash'
+# ^ provides: USER_SHELLS
 
 function act {
 	shell="$(command -v "$1")"
@@ -12,7 +15,7 @@ function act {
 
 	echo "selected the shell [$1] at [$shell]"
 
-	if contains-line "$shell" < /etc/shells; then
+	if contains-line "$shell" </etc/shells; then
 		echo "=> already added to [/etc/shells]"
 	else
 		echo "=> adding to [/etc/shells]"
@@ -41,9 +44,10 @@ if test "$#" -ne 0; then
 			break
 		fi
 	done
-elif is-present "${USER_SHELLS-}"; then
+elif test -v 'USER_SHELLS'; then
 	# cycle through preferences
 	for item in "${USER_SHELLS[@]}"; do
+		is-empty-string "$item" && continue
 		if command-exists "$item"; then
 			act "$item"
 			break
@@ -63,7 +67,7 @@ else
 			choices+=("$item")
 		fi
 	done
-	act "$(choose "${choices[@]}")"
+	act "$(choose-option --question="Which shell to use as your login shell?" -- "${choices[@]}")"
 fi
 
 # no shell was selected, error

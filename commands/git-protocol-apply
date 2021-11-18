@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
 
-remote="${1?"USAGE: git-protocol-apply [remote=origin] [protocol]"}"
+# options
+remote="$(ask --required --default="${1:-"origin"}" --question='What remote to configure?')"
+protocol="$(git-protocol-ask "${2-}")"
 
-ourl="$(git remote get-url "$remote")"
-url="$(git-protocol-format "$ourl" "${2-}")"
-git remote set-url "$remote" "$url"
-# ssh:// is actually https://
-# git@ is actually ssh
-# git remote -v
+# apply the change
+ourl="$(git-remote-url "$remote")"
+purl="$(git-protocol-format "$ourl" "$protocol")"
+git-remote-apply "$remote" "$purl"

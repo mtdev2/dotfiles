@@ -37,14 +37,16 @@ source "$DOROTHY/sources/strict.bash"
 #avconv -i "$1" -vn -c:a libfdk_aac -profile:a aac_he -b:a 48k "$out"
 
 function stereo {
-	out="${1%.*} [aac_he_v2] [48k] [stereo].m4a"
+	local out
+	out="$(fs-filename "$1") [aac_he_v2] [48k] [stereo].m4a"
 	ok rm -rf "$out"
-	ffmpeg -y -i "$1" -c:a libfdk_aac -profile:a aac_he_v2 -b:a 48k "$out" < /dev/null
+	ffmpeg -y -i "$1" -c:a libfdk_aac -profile:a aac_he_v2 -b:a 48k "$out" </dev/null
 }
 function mono {
-	out="${1%.*} [aac_he_v1] [48k] [mono].m4a"
+	local out
+	out="$(fs-filename "$1") [aac_he_v1] [48k] [mono].m4a"
 	ok rm -rf "$out"
-	ffmpeg -y -i "$1" -ac 1 -c:a libfdk_aac -profile:a aac_he -b:a 48k "$out" < /dev/null
+	ffmpeg -y -i "$1" -ac 1 -c:a libfdk_aac -profile:a aac_he -b:a 48k "$out" </dev/null
 	# will be reported as stereo by ffprobe, but that is because of
 	# https://trac.ffmpeg.org/ticket/3361
 }
@@ -60,7 +62,7 @@ function convert {
 }
 
 if test "$#" -eq 0; then
-	find-files mp4 | while read -r file; do
+	find-files --extension=mp4 | while read -r file; do
 		convert "$file"
 	done
 else

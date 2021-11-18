@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+source "$DOROTHY/sources/strict.bash"
+source "$DOROTHY/sources/config.sh"
+config_file="$(get_dorothy_config 'shell.sh')"
+
+# dependencies
+source "$DOROTHY/sources/ripgrep.bash"
+
+# prepare
+themes=(
+	system
+	oz
+)
+
+# starship
+if command-missing starship; then
+	if confirm-positive "Would you like to install the starship [https://starship.rs] theme?"; then
+		setup-util-starship
+	fi
+fi
+if command-exists starship; then
+	themes+=(starship)
+fi
+
+# ask
+theme="$(choose-option --question='Which theme to use?' -- "${themes[@]}")"
+
+# apply
+config-helper \
+	--file="$config_file" \
+	--find='export DOROTHY_THEME=.*' \
+	--replace="export DOROTHY_THEME='$theme'"
+echo "Updated [$config_file] to use the theme [$theme]"

@@ -11,6 +11,7 @@ fi
 if test "$mode" = "install"; then
 	setup-dns
 fi
+
 setup-bin
 setup-git
 setup-rust
@@ -20,6 +21,7 @@ setup-ruby
 setup-python
 setup-vim
 setup-bin
+setup-utils
 if test "$mode" = "install"; then
 	select-shell
 fi

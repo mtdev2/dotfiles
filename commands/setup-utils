@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+source "$DOROTHY/sources/strict.bash"
+
+# =====================================
+# Configuration
+
+if test "$#" -ne 0; then
+	SETUP_UTILS=("$@")
+else
+	source "$DOROTHY/sources/config.sh"
+	load_dorothy_config 'setup.bash'
+	if test ! -v 'SETUP_UTILS'; then
+		SETUP_UTILS=()
+	fi
+fi
+
+# =====================================
+# Action
+
+echo-segment --h1="Setup ${#SETUP_UTILS[@]} utilities"
+for item in "${SETUP_UTILS[@]}"; do
+	if test -n "$item"; then
+		cmd="setup-util-${item}"
+		if command-exists "$cmd"; then
+			"$cmd"
+		else
+			{
+				echo-color --e1="Unable to install [$item], as [$cmd] doesn't exist." $'\n' \
+					$'\n' \
+					--red="You can create the missing by running:" $'\n' \
+					$'\n' \
+					--dim="    touch $DOROTHY/user/$cmd" $'\n' \
+					--dim="    edit $DOROTHY/user/$cmd" $'\n' \
+					--dim="    open https://github.com/bevry/dorothy/discussions/73" $'\n' \
+					$'\n' \
+					--red="Once the command is created, re-run your prior command."
+				exit 1
+			} >/dev/stderr
+		fi
+	fi
+done
+echo-segment --g1="Setup ${#SETUP_UTILS[@]} utilities"

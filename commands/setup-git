@@ -1,20 +1,40 @@
 #!/usr/bin/env bash
-source "$DOROTHY/sources/essentials.sh"
 source "$DOROTHY/sources/strict.bash"
 
+# =====================================
+# Configuration
+
+# environment provides:
+# TERMINAL_EDITOR_PROMPT, TERMINAL_EDITOR, EDITOR
+
+source "$DOROTHY/sources/config.sh"
+load_dorothy_config 'git.bash'
+# git.bash provides:
+# GPG_SIGNING_KEY, KRYPTON_GPG
+# GIT_DEFAULT_BRANCH
+# GIT_NAME, GIT_EMAIL, GITHUB_USERNAME
+
+# =====================================
 # Prepare
-if ! is-dir ~/.ssh; then
-	mkdir ~/.ssh
-fi
-if ! is-file ~/.ssh/config; then
-	touch ~/.ssh/config
+
+echo-segment --h1='Setup Git'
+
+# configuraiton file
+mkdir -p "$HOME/.ssh"
+if test ! -f "$HOME/.ssh/config"; then
+	touch "$HOME/.ssh/config"
 fi
 
-# Log
-echo 'Configuring git...'
+# =====================================
+# Install
+
+setup-util-git
+
+# =====================================
+# Configure
 
 # General
-git config --global core.excludesfile ~/.gitignore_global
+git config --global core.excludesfile "$HOME/.gitignore_global"
 git config --global push.default simple
 git config --global mergetool.keepBackup false
 git config --global color.ui auto
@@ -23,30 +43,24 @@ if test -n "${GIT_DEFAULT_BRANCH-}"; then
 fi
 
 # Profile
-if is-empty-string "$(git config --global user.name)"; then
-	read -r -p "What is your name? " name
-	git config --global user.name "$name"
-fi
-if is-empty-string "$(git config --global user.email)"; then
-	read -r -p "What is your email? " email
-	git config --global user.email "$email"
-fi
-if is-empty-string "$(git config --global github.user)"; then
-	read -r -p "What is your GitHub username? " github
-	git config --global github.user "$github"
-fi
+# echo-color --dim "Name:              $(git config --global user.name)"
+# echo-color --dim "Email:             $(git config --global user.email)"
+# echo-color --dim "GitHub Username:   $(git config --global github.user)"
+git config --global user.name "$(ask --question='What is the name you want to configure git with?' --default="$(git config --global user.name)" --require --confirm)"
+git config --global user.email "$(ask --question='What is the email you want to configure git with?' --default="$(git config --global user.email)" --require --confirm)"
+git config --global github.user "$(ask --question='What is the GitHub username you want to configure git with?' --default="$(git config --global github.user)" --require --confirm)"
 
 # Editor
 echo "Git Configuration: Editor"
-if is-string "${TERMINAL_EDITOR_PROMPT-}"; then
+if test -n "${TERMINAL_EDITOR_PROMPT-}"; then
 	git config --global core.editor "$TERMINAL_EDITOR_PROMPT"
-elif is-string "${TERMINAL_EDITOR-}"; then
+elif test -n "${TERMINAL_EDITOR-}"; then
 	git config --global core.editor "$TERMINAL_EDITOR"
-elif is-string "${EDITOR-}"; then
+elif test -n "${EDITOR-}"; then
 	git config --global core.editor "$EDITOR"
 fi
 
-# Merge tool
+# Merge Tool
 if command-exists meld; then
 	echo "Git Configuration: Meld"
 	git config --global diff.tool meld
@@ -76,27 +90,23 @@ fi
 # Protocol
 # https://hub.github.com/hub.1.html
 # https://stackoverflow.com/a/22027731/130638
-if test "${GIT_PROTOCOL:="${HUB_PROTCOL:-"$(choose ssh https manual)"}"}" = "ssh"; then
+# do not do .insteadof changes, as it messes with our git-protocol-* commands
+protocol="$(choose-option --confirm --question='Which git protocol to prefer?' --filter="${GIT_PROTOCOL:-"${HUB_PROTCOL-}"}" -- ssh https manual)"
+if test "$protocol" = "ssh"; then
 	echo "Git Protocol: SSH"
 	git config --global hub.protocol ssh
-	git config --global url.ssh://git@github.com/.insteadOf https://github.com/
-	git config --global url.ssh://git@gitlab.com/.insteadOf https://gitlab.com/
-	git config --global url.ssh://git@bitbucket.org/.insteadOf https://bitbucket.org/
+elif test "$protocol" = "https"; then
+	echo "Git Protocol: HTTPS"
+	git config --global hub.protocol https
 else
-	# || false to not care about failures if the the key didn't exist
-	ok git config --global --unset url.ssh://git@github.com/.insteadof
-	ok git config --global --unset url.ssh://git@gitlab.com/.insteadof
-	ok git config --global --unset url.ssh://git@bitbucket.org/.insteadof
-	if test "$GIT_PROTOCOL" = "https"; then
-		echo "Git Protocol: HTTPS"
-		git config --global hub.protocol https
-	else
-		echo "Git Protocol: Manual"
-		ok git config --global --unset hub.protocol
-	fi
+	echo "Git Protocol: Manual"
+	ok git config --global --unset hub.protocol
 fi
 
+# =====================================
 # GPG
+
+# helpers
 function gpg_enabled {
 	git config --global tag.gpgsign true
 	git config --global commit.gpgsign true
@@ -122,34 +132,34 @@ function gpg_krypton {
 	ok git config --global --unset user.signingkey
 }
 function gpg_key {
-	if is-empty-string "$1"; then
+	# prepare
+	local agent_file agent_program
+	if test -z "${1-}"; then
 		stderr echo "Git Configuration: No GPG signing key found"
 		return 1
 	fi
+
+	# key
 	echo "Git Configuration: GPG: Key: $1"
 	git config --global gpg.program "$(command -v gpg)"
 	git config --global user.signingkey "$1"
-	if is-mac; then
+
+	# pinentry
+	agent_program="$(command -v pinentry)"
+	if test -n "$agent_program"; then
 		echo "Git Configuration: GPG: Pinentry"
 		agent_file="$HOME/.gnupg/gpg-agent.conf"
 		touch "$agent_file"
-		if ! command-exists pinentry-mac; then
-			if is-brew; then
-				brew install pinentry-mac
-			fi
-		fi
-		if grep 'pinentry-program' <"$agent_file"; then
-			echo 'already configured'
-		else
-			echo "pinentry-program $(command -v pinentry-mac)" >>"$agent_file"
-		fi
+		config-helper \
+			--file="$agent_file" \
+			--find='pinentry-program .+' --replace="pinentry-program $agent_program"
 	fi
 }
 function gpg_setup {
 	echo -e "\\nGit Configuration: GPG"
 	ok silent killall gpg-agent
 	ok silent killall gpg
-	if is-string "${GPG_SIGNING_KEY-}"; then
+	if test -n "${GPG_SIGNING_KEY-}"; then
 		if test "$GPG_SIGNING_KEY" = "krypton"; then
 			gpg_krypton
 		else
@@ -166,6 +176,13 @@ function gpg_setup {
 		fi
 	fi
 }
+
+# act
 if command-exists gpg; then
 	(gpg_setup && gpg_enabled) || gpg_disabled
 fi
+
+# =====================================
+# Done
+
+echo-segment --g1='Setup Git'

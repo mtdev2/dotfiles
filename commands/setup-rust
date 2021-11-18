@@ -1,12 +1,57 @@
 #!/usr/bin/env bash
 source "$DOROTHY/sources/strict.bash"
+source "$DOROTHY/sources/shims.bash"
 
-# install
-if is-brew; then
-	brew install rustup
-elif command-exists rustup; then
+# =====================================
+# Configuration
+
+source "$DOROTHY/sources/config.sh"
+load_dorothy_config 'setup.bash'
+# ^ provides: CARGO_INSTALL/RUST_INSTALL
+
+# =====================================
+# Start
+
+# log
+echo-segment --h1='Setup Rust'
+
+# clean
+if is-brew && test -n "$(brew-installed -- rustup rust || :)"; then
+	if confirm-positive 'Rust is currently installed via homebrew. Confirm that you want Dorothy to use rustup to manage rust instead. Rustup is the official and only endorsed method of managing rust.'; then
+		brew uninstall -f rustup rust
+	fi
+fi
+
+echo-segment --h2="Install build dependencies"
+setup-util-build
+echo-segment --g2="Install build dependencies"
+
+echo-segment --h2="Install rustup"
+if command-exists rustup; then
 	rustup update
 else
 	# https://rust-lang.github.io/rustup/installation/other.html
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path
 fi
+echo-segment --g2="Install rustup"
+
+# install cargos
+function install_each_cargo_crate() {
+	echo-segment --h2="Install $# rust crates"
+	log-performance
+	for line in "$@"; do
+		env NAME="cargo:$line" CARGO="$line" setup-util cargo
+	done
+	echo-segment --g2="Install $# rust crates"
+}
+if testv 'CARGO_INSTALL'; then
+	install_each_cargo_crate "${CARGO_INSTALL[@]}"
+fi
+if testv 'RUST_INSTALL'; then
+	install_each_cargo_crate "${RUST_INSTALL[@]}"
+fi
+
+# =====================================
+# Done
+
+echo-segment --g1='Setup Rust'

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+source "$DOROTHY/sources/strict.bash"
+
+# https://askubuntu.com/a/38782/22776
+
+echo-segment --h1='Update GRUB with Safe Graphics'
+
+sudo-inherit config-helper \
+	--file=/etc/default/grub \
+	--find='GRUB_CMDLINE_LINUX_DEFAULT=.*' \
+	--replace='GRUB_CMDLINE_LINUX_DEFAULT="quiet splash nomodeset"'
+
+update-grub-universal
+
+echo-segment --g1='Update GRUB with Safe Graphics'
